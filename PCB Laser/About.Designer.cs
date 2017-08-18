@@ -47,7 +47,7 @@
             this.copyright.Name = "copyright";
             this.copyright.Size = new System.Drawing.Size(216, 24);
             this.copyright.TabIndex = 5;
-            this.copyright.Text = "©2014-2016 Io Engineering (Terje Io)";
+            this.copyright.Text = "©2014-2017 Io Engineering (Terje Io)";
             // 
             // version
             // 
@@ -55,7 +55,7 @@
             this.version.Name = "version";
             this.version.Size = new System.Drawing.Size(216, 23);
             this.version.TabIndex = 4;
-            this.version.Text = "Version 1.01";
+            this.version.Text = "Version 1.03";
             // 
             // About
             // 

@@ -145,12 +145,13 @@
             // dropInfo
             // 
             this.dropInfo.AutoSize = true;
+            this.dropInfo.BackColor = System.Drawing.Color.Lavender;
             this.dropInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.dropInfo.Location = new System.Drawing.Point(220, 211);
+            this.dropInfo.Location = new System.Drawing.Point(206, 211);
             this.dropInfo.Name = "dropInfo";
-            this.dropInfo.Size = new System.Drawing.Size(239, 13);
+            this.dropInfo.Size = new System.Drawing.Size(287, 13);
             this.dropInfo.TabIndex = 9;
-            this.dropInfo.Text = "Drop 1200 dpi bmp image to expose here";
+            this.dropInfo.Text = "Drop 1200 dpi .bmp or .png image to expose here";
             // 
             // btnCancel
             // 

@@ -1,13 +1,13 @@
 /*
  * UserUI.cs - PCB Laser Printer
  *
- * v1.01 / 2016-08-22 / Io Engineering (Terje Io)
+ * v1.03 / 2017-08-13 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2015, Io Engineering (Terje Io)
+Copyright (c) 2015-2017, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -36,6 +36,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
+//#define USEELTIMA
 
 using System;
 using System.Collections.Generic;
@@ -45,6 +46,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using System.IO.Ports;
 using System.IO;
 using System.Xml;
 
@@ -66,9 +68,14 @@ namespace PCB_Laser
         private Bitmap layout = null, board = null;
         private Graphics gr = null;
         private System.Timers.Timer pollTimer = null;
-        private SPortLib.SPortAx SerialPort;
         private StringBuilder input = new StringBuilder(100);
         private Rectangle rect;
+
+#if USEELTIMA
+        private SPortLib.SPortAx SerialPort;
+#else
+        private SerialPort SerialPort;
+#endif
 
         private delegate void SetTextCallback(string text); 
 
@@ -132,7 +139,17 @@ namespace PCB_Laser
                 System.Environment.Exit(1);
             }
 
-            this.SerialPort = new SPortLib.SPortAx();
+#if USEELTIMA
+            try
+            {
+                this.SerialPort = new SPortLib.SPortAx();
+            }
+            catch
+            {
+                MessageBox.Show("Failed to load serial port driver.", this.Text);
+                System.Environment.Exit(1);
+            }
+
             this.SerialPort.InitString(PortParams.Substring(PortParams.IndexOf(":") + 1));
             this.SerialPort.HandShake = 0x08;
             this.SerialPort.FlowReplace = 0x80;
@@ -141,18 +158,42 @@ namespace PCB_Laser
             this.SerialPort.OnRxFlag += new SPortLib._ISPortAxEvents_OnRxFlagEventHandler(this.SerialRead);
 
             this.SerialPort.Open(PortParams.Substring(0, PortParams.IndexOf(":")));
+#else
+            string[] parameter = PortParams.Substring(PortParams.IndexOf(":") + 1).Split(',');
 
-            if (this.SerialPort.IsOpened)
+            if (parameter.Count() < 4)
+            {
+                this.disableUI();
+                MessageBox.Show("Unable to open printer: " + PortParams, this.Text);
+                System.Environment.Exit(2);
+            }
+
+            this.SerialPort = new SerialPort();
+            this.SerialPort.PortName = PortParams.Substring(0, PortParams.IndexOf(":"));
+            this.SerialPort.BaudRate = int.Parse(parameter[0]);
+            this.SerialPort.Parity = ParseParity(parameter[1]);
+            this.SerialPort.DataBits = int.Parse(parameter[2]);
+            this.SerialPort.StopBits = int.Parse(parameter[3]) == 1 ? StopBits.One : StopBits.Two;
+            if(parameter.Count() > 4)
+                this.SerialPort.Handshake = parameter[4] == "X" ? Handshake.XOnXOff : Handshake.RequestToSend;
+            this.SerialPort.ReceivedBytesThreshold = 1;
+            this.SerialPort.NewLine = "\r\n";
+            this.SerialPort.WriteBufferSize = TXBUFFERSIZE;
+            this.SerialPort.DataReceived += new SerialDataReceivedEventHandler(SerialPort_DataReceived);
+            this.SerialPort.Open();
+#endif
+
+            if (this.SerialOpen)
             {
 
-                this.SerialPort.WriteStr("?\r\n");
+                this.SerialOut("?");
 
                 this.pollTimer = new System.Timers.Timer();
                 this.pollTimer.Interval = this.PollInterval;
                 this.pollTimer.Elapsed += new System.Timers.ElapsedEventHandler(RenderRow);
                 this.pollTimer.SynchronizingObject = this;
 
-                this.SerialPort.WriteStr("XHome:" + this.Xoffset.ToString() + "\r\n");
+                this.SerialOut("XHome:" + this.Xoffset.ToString());
                 this.setLaserPower(false);
 
             } else {
@@ -167,6 +208,50 @@ namespace PCB_Laser
             this.Visible = true;
  
         }
+#if USEELTIMA
+        bool SerialOpen { get { return this.SerialPort.IsOpened; } }
+        int SerialOutCount { get { return this.SerialPort.OutCount; } }
+
+        void SerialOut(string s)
+        {
+            this.SerialPort.WriteStr(s + "\r\n");
+        }
+#else
+        bool SerialOpen { get { return this.SerialPort.IsOpen; } }
+        int SerialOutCount { get { return this.SerialPort.BytesToWrite; } }
+
+        void SerialOut(string s)
+        {
+            this.SerialPort.WriteLine(s);
+        }
+
+        Parity ParseParity (string parity)
+        {
+            Parity res = Parity.None;
+
+            switch(parity) {
+
+                case "E":
+                    res = Parity.Even;
+                    break;
+
+                case "O":
+                    res = Parity.Odd;
+                    break;
+
+                case "M":
+                    res = Parity.Mark;
+                    break;
+
+                case "S":
+                    res = Parity.Space;
+                    break;
+
+            }
+
+            return res;
+        }
+#endif
 
         void exitMenuItem_Click(object sender, EventArgs e)
         {
@@ -206,7 +291,7 @@ namespace PCB_Laser
         }
 
         void LaserPower(bool on) {
-            this.SerialPort.WriteStr("Laser:" + (on ? "1" : "0") + "\r\n");
+            this.SerialOut("Laser:" + (on ? "1" : "0"));
         }
 
         void setLaserFocus() {
@@ -220,7 +305,7 @@ namespace PCB_Laser
             }
 
             if (newz != this.z)
-                this.SerialPort.WriteStr("MoveZ:" + ((newz - this.z) * 10).ToString() + "\r\n");
+                this.SerialOut("MoveZ:" + ((newz - this.z) * 10).ToString());
 
             this.z = newz;
         }
@@ -235,8 +320,7 @@ namespace PCB_Laser
             }
 */
             this.textBox1.Text = this.zPower.Value.ToString();
-            this.SerialPort.WriteStr("Power:" + this.zPower.Value.ToString() + "\r\n");
-
+            this.SerialOut("Power:" + this.zPower.Value.ToString());
         }
 
 #region UIevents
@@ -246,7 +330,7 @@ namespace PCB_Laser
             if (this.pollTimer != null)
                 this.pollTimer.Stop();
 
-            if (this.SerialPort.IsOpened)
+            if (this.SerialOpen)
                 this.SerialPort.Close();
 
         }
@@ -259,7 +343,7 @@ namespace PCB_Laser
 
         void btnHome_Click(object sender, EventArgs e)
         {
-            this.SerialPort.WriteStr("HomeXY\r\n");
+            this.SerialOut("HomeXY");
         }
 
         void zOn_Click(object sender, EventArgs e)
@@ -308,11 +392,11 @@ namespace PCB_Laser
             this.zOn.Checked = true;
 
             if(this.XBacklashComp >= 0)
-                this.SerialPort.WriteStr("XBComp:" + this.XBacklashComp.ToString() + "\r\n");
+                this.SerialOut("XBComp:" + this.XBacklashComp.ToString());
 
-            this.SerialPort.WriteStr("XPix:" + this.layout.Width.ToString() + "\r\n");
-            this.SerialPort.WriteStr("YPix:" + this.layout.Height.ToString() + "\r\n");
-            this.SerialPort.WriteStr("Start\r\n");
+            this.SerialOut("XPix:" + this.layout.Width.ToString());
+            this.SerialOut("YPix:" + this.layout.Height.ToString());
+            this.SerialOut("Start");
 
             this.y      = 0;
             this.cancel = false;
@@ -404,18 +488,20 @@ namespace PCB_Laser
 
 #endregion
 
-        private int getPixel(int x, int y)
+        private bool getPixel(int x, int y)
         {
             x -= 150;
-            return x < 0 || x >= this.board.Width ? 1 : this.board.GetPixel(x, y).ToArgb() & 0xFFFFFF;
+            return x < 0 || x >= this.board.Width ? true : (this.board.GetPixel(x, y).ToArgb() & 0xFFFFFF) == 0xFFFFFF;
         }
 
         private void RenderRow (object sender, System.Timers.ElapsedEventArgs e) {
 
-            int i, x, p = BYTEPIXELS, color, pixels = 0;
+            int i, x, p = BYTEPIXELS, pixels = 0;
+            bool white;
 
             // one full length line (x-axis) is about 1KB
-            if ((TXBUFFERSIZE - this.SerialPort.OutCount) > 1200 && y < this.layout.Height) {
+            if ((TXBUFFERSIZE - this.SerialOutCount) > 1200 && y < this.layout.Height)
+            {
 
                 this.started = true;
                 this.pollTimer.Stop();
@@ -429,9 +515,9 @@ namespace PCB_Laser
 
                     for (x = 0; x < this.layout.Width; x++) {
 
-                        color = this.getPixel(x, this.y);
+                        white = this.getPixel(x, this.y);
 
-                        if (color != 0)
+                        if (white)
                             pixels |= 0x40;
 
                         if (--p == 0) {
@@ -443,7 +529,7 @@ namespace PCB_Laser
                         } else
                             pixels = pixels >> 1;
 
-                        if (color != 0)
+                        if (white)
                             this.layout.SetPixel(x, this.y, Color.LightGreen);
                     }
  
@@ -451,9 +537,9 @@ namespace PCB_Laser
 
                     for (x = this.layout.Width - 1; x >= 0; x--) {
 
-                        color = this.getPixel(x, this.y);
+                        white = this.getPixel(x, this.y);
 
-                        if (color != 0)
+                        if (white)
                             pixels |= 0x40;
 
                         if (--p == 0) {
@@ -465,15 +551,18 @@ namespace PCB_Laser
                         } else
                             pixels = pixels >> 1;
 
-                        if (color != 0)
+                        if (white)
                             this.layout.SetPixel(x, this.y, Color.LightGreen);
                     }
 
                 }
 
                 this.rowBuffer[i++] = (byte)'\n';
+#if USEELTIMA
                 this.SerialPort.Write(ref this.rowBuffer[0], i);
-
+#else
+                this.SerialPort.Write(this.rowBuffer, 0, i);
+#endif
                 if (++this.y != this.layout.Height) {
                     this.pollTimer.Interval = this.PollInterval;
                     this.pollTimer.Start();
@@ -488,11 +577,15 @@ namespace PCB_Laser
 
             if (this.cancel) {
                 this.pollTimer.Stop();
-                while (this.SerialPort.OutCount != 0);
+                while (this.SerialOutCount != 0) ;
                 this.rowBuffer[0] = (byte)0x1A;
                 p = 102;
                 while (--p > 0)
+#if USEELTIMA
                     this.SerialPort.Write(ref this.rowBuffer[0], 1); // trigger fill buffer
+#else
+                    this.SerialPort.Write(this.rowBuffer, 0, 1); // trigger fill buffer
+#endif
                 this.enableUI();
             }
 
@@ -532,7 +625,9 @@ namespace PCB_Laser
                 x = 0;
                     
                 while(xhit == 0 && x < b.Width) {
-                    if ((c = (b.GetPixel(x, y).ToArgb() & 0xFFFFFF)) == 0) {
+                    c = b.GetPixel(x, y).ToArgb() & 0xFFFFFF;
+                    if ((c = (b.GetPixel(x, y).ToArgb() & 0xFFFFFF)) != 0xFFFFFF)
+                    {
                         xhit = 1;
                         xmin = Math.Min(xmin, x);
                     }
@@ -549,7 +644,8 @@ namespace PCB_Laser
                     xhit = 0;
 
                     while(xhit == 0 && x > xmax) {
-                        if ((b.GetPixel(x, y).ToArgb() & 0xFFFFFF) == 0) {
+                        if ((b.GetPixel(x, y).ToArgb() & 0xFFFFFF) != 0xFFFFFF)
+                        {
                             xhit = 1;
                             xmax = Math.Max(xmax, x);
                         } else
@@ -573,13 +669,14 @@ namespace PCB_Laser
 
         }
 
-        private void SerialRead () {
-
+#if USEELTIMA
+        private void SerialRead ()
+        {
             int pos = 0;
             string s;
 
-            lock (this.input) {
-
+            lock (this.input)
+            {
                 this.input.Append(this.SerialPort.ReadStr());
 
                 while ((pos = this.input.ToString().IndexOf('\n')) > 0) {
@@ -589,9 +686,26 @@ namespace PCB_Laser
                 }
 
             }
-
         }
+#else
+        void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            int pos = 0;
+            string s;
 
+            lock (this.input)
+            {
+                this.input.Append(this.SerialPort.ReadExisting());
+
+                while ((pos = this.input.ToString().IndexOf('\n')) > 0)
+                {
+                    s = input.ToString(0, pos - 1);
+                    SetStatus(s);
+                    this.input.Remove(0, pos + 1);
+                }
+            }
+        }
+#endif
     }
 
 }
