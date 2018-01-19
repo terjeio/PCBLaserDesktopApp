@@ -53,6 +53,10 @@
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exitMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.cbxEtchEmulsion = new System.Windows.Forms.ComboBox();
+            this.label5 = new System.Windows.Forms.Label();
+            this.label6 = new System.Windows.Forms.Label();
+            this.cbxSolderEmulsion = new System.Windows.Forms.ComboBox();
             ((System.ComponentModel.ISupportInitialize)(this.pcb)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.zFocus)).BeginInit();
             this.grpBox.SuspendLayout();
@@ -288,12 +292,60 @@
             this.exitMenuItem.Size = new System.Drawing.Size(116, 22);
             this.exitMenuItem.Text = "Exit";
             // 
+            // cbxEtchEmulsion
+            // 
+            this.cbxEtchEmulsion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cbxEtchEmulsion.FormattingEnabled = true;
+            this.cbxEtchEmulsion.Items.AddRange(new object[] {
+            "Negative",
+            "Positive"});
+            this.cbxEtchEmulsion.Location = new System.Drawing.Point(123, 440);
+            this.cbxEtchEmulsion.MaxDropDownItems = 1;
+            this.cbxEtchEmulsion.Name = "cbxEtchEmulsion";
+            this.cbxEtchEmulsion.Size = new System.Drawing.Size(67, 21);
+            this.cbxEtchEmulsion.TabIndex = 17;
+            // 
+            // label5
+            // 
+            this.label5.AutoSize = true;
+            this.label5.Location = new System.Drawing.Point(13, 443);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(104, 13);
+            this.label5.TabIndex = 18;
+            this.label5.Text = "Etch mask emulsion:";
+            // 
+            // label6
+            // 
+            this.label6.AutoSize = true;
+            this.label6.Location = new System.Drawing.Point(215, 443);
+            this.label6.Name = "label6";
+            this.label6.Size = new System.Drawing.Size(112, 13);
+            this.label6.TabIndex = 20;
+            this.label6.Text = "Solder mask emulsion:";
+            // 
+            // cbxSolderEmulsion
+            // 
+            this.cbxSolderEmulsion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cbxSolderEmulsion.FormattingEnabled = true;
+            this.cbxSolderEmulsion.Items.AddRange(new object[] {
+            "Negative",
+            "Positive"});
+            this.cbxSolderEmulsion.Location = new System.Drawing.Point(333, 440);
+            this.cbxSolderEmulsion.MaxDropDownItems = 2;
+            this.cbxSolderEmulsion.Name = "cbxSolderEmulsion";
+            this.cbxSolderEmulsion.Size = new System.Drawing.Size(67, 21);
+            this.cbxSolderEmulsion.TabIndex = 19;
+            // 
             // UserUI
             // 
             this.AllowDrop = true;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(826, 476);
+            this.Controls.Add(this.label6);
+            this.Controls.Add(this.cbxSolderEmulsion);
+            this.Controls.Add(this.label5);
+            this.Controls.Add(this.cbxEtchEmulsion);
             this.Controls.Add(this.btnHome);
             this.Controls.Add(this.chkInvert);
             this.Controls.Add(this.chkMirror);
@@ -312,7 +364,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip;
             this.Name = "UserUI";
-            this.Text = "PCB Laser Exposer";
+            this.Text = "PCB Laser";
             ((System.ComponentModel.ISupportInitialize)(this.pcb)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.zFocus)).EndInit();
             this.grpBox.ResumeLayout(false);
@@ -352,6 +404,10 @@
         private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem aboutMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exitMenuItem;
+        private System.Windows.Forms.ComboBox cbxEtchEmulsion;
+        private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.Label label6;
+        private System.Windows.Forms.ComboBox cbxSolderEmulsion;
     }
 }
 

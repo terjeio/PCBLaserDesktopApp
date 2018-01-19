@@ -1,7 +1,7 @@
 /*
  * UserUI.cs - PCB Laser Printer
  *
- * v1.03 / 2017-08-13 / Io Engineering (Terje Io)
+ * v1.04 / 2018-01-19 / Io Engineering (Terje Io)
  *
  */
 
@@ -53,6 +53,11 @@ using System.Xml;
 namespace PCB_Laser
 {
 
+    public struct FileEndings 
+    {
+        public string topCopper, bottomCopper, topMask, bottomMask;
+    }
+
     public partial class UserUI : Form
     {
 
@@ -61,15 +66,23 @@ namespace PCB_Laser
         const int TXBUFFERSIZE = 4096;
         const double PIXELSIZE = 25.4 / 1200;
 
-        private string PortParams = "com14:38400,N,8,1,P";
+        enum EmulsionType {
+            Negative = 0,
+            Positive
+        }
+
+        private string PortParams = "com15:38400,N,8,1,P";
         private int PollInterval = 50, y = 0, z = 50, Xoffset = 0, XBacklashComp = -1;
-        private bool zFocusClicked = false, mirrored = false, started = false, cancel = false;
+        private bool zFocusClicked = false, mirrored = false, started = false, cancel = false, solderMask = false, uknownFileEnding = true;
         private byte[] rowBuffer = null;
         private Bitmap layout = null, board = null;
-        private Graphics gr = null;
+        private Graphics gr = null;  
         private System.Timers.Timer pollTimer = null;
         private StringBuilder input = new StringBuilder(100);
         private Rectangle rect;
+        private EmulsionType emulsionEtchMask = EmulsionType.Negative;
+        private EmulsionType emulsionSolderMask = EmulsionType.Negative;
+        private FileEndings fileEnding; 
 
 #if USEELTIMA
         private SPortLib.SPortAx SerialPort;
@@ -100,6 +113,12 @@ namespace PCB_Laser
             this.aboutMenuItem.Click += new EventHandler(aboutMenuItem_Click);
             this.exitMenuItem.Click += new EventHandler(exitMenuItem_Click);
             
+            // default to KiCad file name endings
+            this.fileEnding.topCopper = "F.Cu";
+            this.fileEnding.bottomCopper = "B.Cu";
+            this.fileEnding.topMask = "F.Mask";
+            this.fileEnding.bottomMask = "B.Mask";
+
             try
             {
                 XmlDocument config = new XmlDocument();
@@ -124,6 +143,14 @@ namespace PCB_Laser
                             this.Xoffset = int.Parse(N.InnerText);
                             break;
 
+                        case "EtchMaskEmulsion":
+                            this.emulsionEtchMask = this.parseEmulsionType(N.InnerText);
+                            break;
+
+                        case "SolderMaskEmulsion":
+                            this.emulsionSolderMask = this.parseEmulsionType(N.InnerText);
+                            break;
+
                         case "BacklashCompensation":
                             this.XBacklashComp = int.Parse(N.InnerText);
                             break;
@@ -132,10 +159,32 @@ namespace PCB_Laser
 
                 }
 
+                foreach (XmlNode N in config.SelectNodes("PCBConfig/FileNameEnding/*"))
+                {
+                    switch (N.Name)
+                    {
+                        case "TopCopper":
+                            this.fileEnding.topCopper = N.InnerText;
+                            break;
+
+                        case "BottomCopper":
+                            this.fileEnding.bottomCopper = N.InnerText;
+                            break;
+
+                        case "TopMask":
+                            this.fileEnding.topMask = N.InnerText;
+                            break;
+
+                        case "BottomMask":
+                            this.fileEnding.bottomMask = N.InnerText;
+                            break;
+                    }
+                }
+
             }
             catch
             {
-                MessageBox.Show("Config file not found.", this.Text);
+                MessageBox.Show("Config file not found or invalid.", this.Text);
                 System.Environment.Exit(1);
             }
 
@@ -205,9 +254,17 @@ namespace PCB_Laser
             this.enableUI();
 
             this.zFocus.Value = this.z;
+            this.cbxEtchEmulsion.SelectedIndex = (int)this.emulsionEtchMask;
+            this.cbxSolderEmulsion.SelectedIndex = (int)this.emulsionSolderMask;
+            this.chkInvert.Checked = solderMask ? this.emulsionSolderMask == EmulsionType.Negative : this.emulsionEtchMask == EmulsionType.Positive;
+
+            this.cbxEtchEmulsion.SelectedIndexChanged += new EventHandler(cbxEtchEmulsion_SelectedIndexChanged);
+            this.cbxSolderEmulsion.SelectedIndexChanged += new EventHandler(cbxSolderEmulsion_SelectedIndexChanged);
+
             this.Visible = true;
  
         }
+
 #if USEELTIMA
         bool SerialOpen { get { return this.SerialPort.IsOpened; } }
         int SerialOutCount { get { return this.SerialPort.OutCount; } }
@@ -274,6 +331,8 @@ namespace PCB_Laser
             this.zPower.Enabled = false;
             this.chkInvert.Enabled = false;
             this.chkMirror.Enabled = false;
+            this.cbxEtchEmulsion.Enabled = false;
+            this.cbxSolderEmulsion.Enabled = false;
             this.aboutMenuItem.Enabled = false;
         }
 
@@ -287,6 +346,8 @@ namespace PCB_Laser
             this.zPower.Enabled = true;
             this.chkInvert.Enabled = true;
             this.chkMirror.Enabled = true;
+            this.cbxEtchEmulsion.Enabled = !this.solderMask || this.uknownFileEnding;
+            this.cbxSolderEmulsion.Enabled = this.solderMask || this.uknownFileEnding;
             this.aboutMenuItem.Enabled = true;
         }
 
@@ -341,6 +402,20 @@ namespace PCB_Laser
                 ShowBoard();
         }
 
+        void cbxSolderEmulsion_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            this.emulsionSolderMask = (EmulsionType)this.cbxSolderEmulsion.SelectedIndex;
+            if (this.solderMask)
+                this.chkInvert.Checked = !this.chkInvert.Checked;
+        }
+
+        void cbxEtchEmulsion_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            this.emulsionEtchMask = (EmulsionType)this.cbxEtchEmulsion.SelectedIndex;
+            if (!this.solderMask)
+                this.chkInvert.Checked = !this.chkInvert.Checked;;
+        }
+
         void btnHome_Click(object sender, EventArgs e)
         {
             this.SerialOut("HomeXY");
@@ -385,7 +460,6 @@ namespace PCB_Laser
 
         void btnStart_Click(object sender, EventArgs e)
         {
-
             if(this.started)
                 this.ShowBoard();
 
@@ -404,7 +478,6 @@ namespace PCB_Laser
             this.pollTimer.Start();
 
             disableUI();
-
         }
 
         void btnCancel_Click (object sender, EventArgs e) {
@@ -430,7 +503,7 @@ namespace PCB_Laser
 
         void UserUI_DragDrop (object sender, DragEventArgs e) {
 
-            string filetype;
+            string filename;
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop, false);
 
             Bitmap image = null;
@@ -453,13 +526,17 @@ namespace PCB_Laser
                 }
 
                 this.mirrored = false;
-                filetype = files[0].Substring(files[0].LastIndexOf('.'));
-                this.chkInvert.Checked = files[0].EndsWith("smask" + filetype) ||
-                                          files[0].EndsWith("Mask" + filetype);
-                this.chkMirror.Checked = files[0].EndsWith("B_Cu" + filetype) ||
-                                          files[0].EndsWith("B_Mask" + filetype) ||
-                                           files[0].EndsWith("B.Cu" + filetype) ||
-                                            files[0].EndsWith("B.Mask" + filetype);
+                filename = files[0].Substring(0, files[0].LastIndexOf('.'));
+
+                if ((solderMask = filename.EndsWith(this.fileEnding.topMask) || filename.EndsWith(this.fileEnding.bottomMask)))
+                    this.chkInvert.Checked = this.emulsionSolderMask == EmulsionType.Negative;
+                else
+                    this.chkInvert.Checked = this.emulsionEtchMask == EmulsionType.Positive;
+
+                this.chkMirror.Checked = filename.EndsWith(this.fileEnding.bottomCopper) ||
+                                          filename.EndsWith(this.fileEnding.bottomMask);
+
+                this.uknownFileEnding = !(solderMask || this.chkMirror.Checked || filename.EndsWith(this.fileEnding.topCopper));
 
                 image = new Bitmap(files[0]);
                 this.rect = GetPCBSize(image);
@@ -482,8 +559,9 @@ namespace PCB_Laser
 
                 this.enableUI();
 
+                if (this.uknownFileEnding)
+                    MessageBox.Show("File ending not recognized, set image inversion and mirroring manually!", this.Text);
             }
-
         }
 
 #endregion
@@ -658,6 +736,10 @@ namespace PCB_Laser
 
             return new Rectangle(xmin, ymin, xmax - xmin + 1, ymax - ymin + 1);
 
+        }
+
+        private EmulsionType parseEmulsionType (string type) {
+           return type == EmulsionType.Positive.ToString() ? EmulsionType.Positive : EmulsionType.Negative;
         }
 
         private void SetStatus (string s) {
