@@ -36,14 +36,13 @@
             this.label2 = new System.Windows.Forms.Label();
             this.btnStart = new System.Windows.Forms.Button();
             this.zFocus = new System.Windows.Forms.TrackBar();
-            this.label3 = new System.Windows.Forms.Label();
+            this.lblFocus = new System.Windows.Forms.Label();
             this.txtStatus = new System.Windows.Forms.TextBox();
             this.dropInfo = new System.Windows.Forms.Label();
             this.btnCancel = new System.Windows.Forms.Button();
             this.grpBox = new System.Windows.Forms.GroupBox();
-            this.textBox1 = new System.Windows.Forms.TextBox();
             this.zOn = new System.Windows.Forms.CheckBox();
-            this.label4 = new System.Windows.Forms.Label();
+            this.lblPower = new System.Windows.Forms.Label();
             this.zPower = new System.Windows.Forms.TrackBar();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.chkMirror = new System.Windows.Forms.CheckBox();
@@ -57,6 +56,7 @@
             this.label5 = new System.Windows.Forms.Label();
             this.label6 = new System.Windows.Forms.Label();
             this.cbxSolderEmulsion = new System.Windows.Forms.ComboBox();
+            this.btnMotors = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pcb)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.zFocus)).BeginInit();
             this.grpBox.SuspendLayout();
@@ -120,7 +120,7 @@
             // 
             // zFocus
             // 
-            this.zFocus.Location = new System.Drawing.Point(23, 47);
+            this.zFocus.Location = new System.Drawing.Point(84, 47);
             this.zFocus.Maximum = 100;
             this.zFocus.Name = "zFocus";
             this.zFocus.Orientation = System.Windows.Forms.Orientation.Vertical;
@@ -128,15 +128,17 @@
             this.zFocus.TabIndex = 6;
             this.zFocus.TabStop = false;
             this.zFocus.Value = 50;
+            this.zFocus.Visible = false;
             // 
-            // label3
+            // lblFocus
             // 
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(20, 31);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(39, 13);
-            this.label3.TabIndex = 7;
-            this.label3.Text = "Focus:";
+            this.lblFocus.AutoSize = true;
+            this.lblFocus.Location = new System.Drawing.Point(81, 31);
+            this.lblFocus.Name = "lblFocus";
+            this.lblFocus.Size = new System.Drawing.Size(39, 13);
+            this.lblFocus.TabIndex = 7;
+            this.lblFocus.Text = "Focus:";
+            this.lblFocus.Visible = false;
             // 
             // txtStatus
             // 
@@ -169,25 +171,17 @@
             // 
             // grpBox
             // 
-            this.grpBox.Controls.Add(this.textBox1);
             this.grpBox.Controls.Add(this.zOn);
-            this.grpBox.Controls.Add(this.label4);
-            this.grpBox.Controls.Add(this.zPower);
+            this.grpBox.Controls.Add(this.lblPower);
             this.grpBox.Controls.Add(this.zFocus);
-            this.grpBox.Controls.Add(this.label3);
+            this.grpBox.Controls.Add(this.lblFocus);
+            this.grpBox.Controls.Add(this.zPower);
             this.grpBox.Location = new System.Drawing.Point(668, 105);
             this.grpBox.Name = "grpBox";
             this.grpBox.Size = new System.Drawing.Size(137, 179);
             this.grpBox.TabIndex = 11;
             this.grpBox.TabStop = false;
             this.grpBox.Text = "Laser";
-            // 
-            // textBox1
-            // 
-            this.textBox1.Location = new System.Drawing.Point(45, 0);
-            this.textBox1.Name = "textBox1";
-            this.textBox1.Size = new System.Drawing.Size(100, 20);
-            this.textBox1.TabIndex = 11;
             // 
             // zOn
             // 
@@ -199,19 +193,19 @@
             this.zOn.Text = "On";
             this.zOn.UseVisualStyleBackColor = true;
             // 
-            // label4
+            // lblPower
             // 
-            this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(68, 31);
-            this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(40, 13);
-            this.label4.TabIndex = 9;
-            this.label4.Text = "Power:";
+            this.lblPower.AutoSize = true;
+            this.lblPower.Location = new System.Drawing.Point(12, 31);
+            this.lblPower.Name = "lblPower";
+            this.lblPower.Size = new System.Drawing.Size(40, 13);
+            this.lblPower.TabIndex = 9;
+            this.lblPower.Text = "Power:";
             // 
             // zPower
             // 
             this.zPower.LargeChange = 400;
-            this.zPower.Location = new System.Drawing.Point(74, 47);
+            this.zPower.Location = new System.Drawing.Point(18, 47);
             this.zPower.Maximum = 4095;
             this.zPower.Minimum = 1500;
             this.zPower.Name = "zPower";
@@ -336,12 +330,23 @@
             this.cbxSolderEmulsion.Size = new System.Drawing.Size(67, 21);
             this.cbxSolderEmulsion.TabIndex = 19;
             // 
+            // btnMotors
+            // 
+            this.btnMotors.Location = new System.Drawing.Point(738, 440);
+            this.btnMotors.Name = "btnMotors";
+            this.btnMotors.Size = new System.Drawing.Size(75, 23);
+            this.btnMotors.TabIndex = 21;
+            this.btnMotors.Text = "Motors off";
+            this.btnMotors.UseVisualStyleBackColor = true;
+            this.btnMotors.Visible = false;
+            // 
             // UserUI
             // 
             this.AllowDrop = true;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(826, 476);
+            this.Controls.Add(this.btnMotors);
             this.Controls.Add(this.label6);
             this.Controls.Add(this.cbxSolderEmulsion);
             this.Controls.Add(this.label5);
@@ -364,7 +369,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip;
             this.Name = "UserUI";
-            this.Text = "PCB Laser";
+            this.Text = "PCB Exposer";
             ((System.ComponentModel.ISupportInitialize)(this.pcb)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.zFocus)).EndInit();
             this.grpBox.ResumeLayout(false);
@@ -387,18 +392,17 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Button btnStart;
         private System.Windows.Forms.TrackBar zFocus;
-        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.Label lblFocus;
         private System.Windows.Forms.TextBox txtStatus;
         private System.Windows.Forms.Label dropInfo;
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.GroupBox grpBox;
-        private System.Windows.Forms.Label label4;
+        private System.Windows.Forms.Label lblPower;
         private System.Windows.Forms.TrackBar zPower;
         private System.Windows.Forms.CheckBox zOn;
         private System.Windows.Forms.PictureBox pictureBox1;
         private System.Windows.Forms.CheckBox chkMirror;
         private System.Windows.Forms.CheckBox chkInvert;
-        private System.Windows.Forms.TextBox textBox1;
         private System.Windows.Forms.Button btnHome;
         private System.Windows.Forms.MenuStrip menuStrip;
         private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
@@ -408,6 +412,7 @@
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.ComboBox cbxSolderEmulsion;
+        private System.Windows.Forms.Button btnMotors;
     }
 }
 

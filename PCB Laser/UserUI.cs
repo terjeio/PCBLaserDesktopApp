@@ -1,13 +1,13 @@
 /*
  * UserUI.cs - PCB Laser Printer
  *
- * v1.04 / 2018-01-19 / Io Engineering (Terje Io)
+ * v1.06 / 2019-04-21 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2015-2017, Io Engineering (Terje Io)
+Copyright (c) 2015-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -71,13 +71,13 @@ namespace PCB_Laser
             Positive
         }
 
-        private string PortParams = "com15:38400,N,8,1,P";
-        private int PollInterval = 50, y = 0, z = 50, Xoffset = 0, XBacklashComp = -1;
+        private string PortParams = "com29:38400,N,8,1,P";
+        private int PollInterval = 50, y = 0, z = 50, Xoffset = 0, Yoffset = 0, XBacklashComp = -1;
         private bool zFocusClicked = false, mirrored = false, started = false, cancel = false, solderMask = false, uknownFileEnding = true;
         private byte[] rowBuffer = null;
         private Bitmap layout = null, board = null;
         private Graphics gr = null;  
-        private System.Timers.Timer pollTimer = null;
+        private System.Timers.Timer pollTimer = null, motorTimer = null;
         private StringBuilder input = new StringBuilder(100);
         private Rectangle rect;
         private EmulsionType emulsionEtchMask = EmulsionType.Negative;
@@ -90,15 +90,16 @@ namespace PCB_Laser
         private SerialPort SerialPort;
 #endif
 
-        private delegate void SetTextCallback(string text); 
+        private delegate void SetTextCallback(string text);
 
-        public UserUI()
+        public UserUI(string[] args)
         {
 
             InitializeComponent();
             this.FormClosed += new FormClosedEventHandler(OnExit);
             this.btnStart.Click += new EventHandler(btnStart_Click);
             this.btnCancel.Click += new EventHandler(btnCancel_Click);
+            this.btnMotors.Click += new EventHandler(btnMotors_Click);
             this.DragEnter += new DragEventHandler(UserUI_DragEnter);
             this.DragDrop += new DragEventHandler(UserUI_DragDrop);
             this.zFocus.Scroll += new EventHandler(zFocus_Scrolled);
@@ -113,17 +114,26 @@ namespace PCB_Laser
             this.aboutMenuItem.Click += new EventHandler(aboutMenuItem_Click);
             this.exitMenuItem.Click += new EventHandler(exitMenuItem_Click);
             
-            // default to KiCad file name endings
-            this.fileEnding.topCopper = "F.Cu";
-            this.fileEnding.bottomCopper = "B.Cu";
-            this.fileEnding.topMask = "F.Mask";
-            this.fileEnding.bottomMask = "B.Mask";
+            // default to KiCad v5 file name endings
+            this.fileEnding.topCopper = "F_Cu";
+            this.fileEnding.bottomCopper = "B_Cu";
+            this.fileEnding.topMask = "F_Mask";
+            this.fileEnding.bottomMask = "B_Mask";
+
+            int p = 0;
+            string ininame = "PCBLaser.config";
+            while (p < args.GetLength(0)) switch (args[p++])
+            {
+                case "-inifile":
+                    ininame = GetArg(args, p++);
+                    break;
+            }
 
             try
             {
                 XmlDocument config = new XmlDocument();
 
-                config.Load(Application.StartupPath + "\\PCBLaser.config");
+                config.Load(Application.StartupPath + "\\" + ininame);
 
                 foreach (XmlNode N in config.SelectNodes("PCBConfig/*"))
                 {
@@ -143,6 +153,10 @@ namespace PCB_Laser
                             this.Xoffset = int.Parse(N.InnerText);
                             break;
 
+                        case "YOffset":
+                            this.Yoffset = int.Parse(N.InnerText);
+                            break;
+
                         case "EtchMaskEmulsion":
                             this.emulsionEtchMask = this.parseEmulsionType(N.InnerText);
                             break;
@@ -154,9 +168,7 @@ namespace PCB_Laser
                         case "BacklashCompensation":
                             this.XBacklashComp = int.Parse(N.InnerText);
                             break;
-
                     }
-
                 }
 
                 foreach (XmlNode N in config.SelectNodes("PCBConfig/FileNameEnding/*"))
@@ -180,11 +192,10 @@ namespace PCB_Laser
                             break;
                     }
                 }
-
             }
             catch
             {
-                MessageBox.Show("Config file not found or invalid.", this.Text);
+                MessageBox.Show("Config file not found or invalid.", ininame);
                 System.Environment.Exit(1);
             }
 
@@ -229,7 +240,13 @@ namespace PCB_Laser
             this.SerialPort.NewLine = "\r\n";
             this.SerialPort.WriteBufferSize = TXBUFFERSIZE;
             this.SerialPort.DataReceived += new SerialDataReceivedEventHandler(SerialPort_DataReceived);
-            this.SerialPort.Open();
+            try
+            {
+                this.SerialPort.Open();
+            }
+            catch
+            {
+            }
 #endif
 
             if (this.SerialOpen)
@@ -242,7 +259,13 @@ namespace PCB_Laser
                 this.pollTimer.Elapsed += new System.Timers.ElapsedEventHandler(RenderRow);
                 this.pollTimer.SynchronizingObject = this;
 
+                this.motorTimer = new System.Timers.Timer();
+                this.motorTimer.Interval = 60 * 1000; // 1 minute
+                this.motorTimer.Elapsed += new System.Timers.ElapsedEventHandler(MotorOff);
+                this.motorTimer.SynchronizingObject = this;
+
                 this.SerialOut("XHome:" + this.Xoffset.ToString());
+                this.SerialOut("YHome:" + this.Yoffset.ToString());
                 this.setLaserPower(false);
 
             } else {
@@ -276,6 +299,11 @@ namespace PCB_Laser
 #else
         bool SerialOpen { get { return this.SerialPort.IsOpen; } }
         int SerialOutCount { get { return this.SerialPort.BytesToWrite; } }
+
+        private string GetArg(string[] args, int i)
+        {
+            return i < args.GetLength(0) ? args[i] : null;
+        }
 
         void SerialOut(string s)
         {
@@ -326,6 +354,7 @@ namespace PCB_Laser
             this.btnHome.Enabled = false;
             this.btnStart.Enabled = false;
             this.btnCancel.Enabled = true;
+            this.btnMotors.Enabled = false;
             this.zFocus.Enabled = false;
             this.zOn.Enabled = false;
             this.zPower.Enabled = false;
@@ -340,6 +369,7 @@ namespace PCB_Laser
             this.AllowDrop = true;
             this.btnHome.Enabled = true;
             this.btnCancel.Enabled = false;
+            this.btnMotors.Enabled = true;
             this.btnStart.Enabled = this.layout != null;
             this.zFocus.Enabled = true;
             this.zOn.Enabled = true;
@@ -380,20 +410,21 @@ namespace PCB_Laser
                 LaserPower(true);
             }
 */
-            this.textBox1.Text = this.zPower.Value.ToString();
             this.SerialOut("Power:" + this.zPower.Value.ToString());
         }
 
 #region UIevents
 
-        void OnExit (object sender, FormClosedEventArgs e) {
-
+        void OnExit (object sender, FormClosedEventArgs e)
+        {
             if (this.pollTimer != null)
                 this.pollTimer.Stop();
 
+            if (this.motorTimer != null)
+                this.motorTimer.Stop();
+
             if (this.SerialOpen)
                 this.SerialPort.Close();
-
         }
 
         void chkMirror_CheckedChanged(object sender, EventArgs e)
@@ -419,6 +450,7 @@ namespace PCB_Laser
         void btnHome_Click(object sender, EventArgs e)
         {
             this.SerialOut("HomeXY");
+            this.motorTimer.Start();
         }
 
         void zOn_Click(object sender, EventArgs e)
@@ -465,6 +497,8 @@ namespace PCB_Laser
 
             this.zOn.Checked = true;
 
+            this.motorTimer.Stop();
+
             if(this.XBacklashComp >= 0)
                 this.SerialOut("XBComp:" + this.XBacklashComp.ToString());
 
@@ -478,6 +512,12 @@ namespace PCB_Laser
             this.pollTimer.Start();
 
             disableUI();
+        }
+
+        void btnMotors_Click(object sender, EventArgs e)
+        {
+            this.motorTimer.Stop();
+            this.SerialOut("Motors:0");
         }
 
         void btnCancel_Click (object sender, EventArgs e) {
@@ -566,6 +606,12 @@ namespace PCB_Laser
 
 #endregion
 
+        private void MotorOff(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            this.SerialOut("Motors:0");
+            this.motorTimer.Stop();
+        }
+
         private bool getPixel(int x, int y)
         {
             x -= 150;
@@ -644,9 +690,10 @@ namespace PCB_Laser
                 if (++this.y != this.layout.Height) {
                     this.pollTimer.Interval = this.PollInterval;
                     this.pollTimer.Start();
-                } else {
+                } else { // Done!
                     this.zOn.Checked = false;
                     enableUI();
+                    this.motorTimer.Start();
                 }
 
                 pcb.Invalidate();
@@ -665,6 +712,7 @@ namespace PCB_Laser
                     this.SerialPort.Write(this.rowBuffer, 0, 1); // trigger fill buffer
 #endif
                 this.enableUI();
+                this.motorTimer.Start();
             }
 
         }
@@ -747,8 +795,15 @@ namespace PCB_Laser
             if (this.txtStatus.InvokeRequired)
                 this.Invoke(new SetTextCallback(SetStatus), new object[] { s });
             else
+            {
+                if(s.StartsWith("OPT:"))
+                {
+                    this.btnMotors.Visible = s.Contains('M');
+                    this.lblPower.Visible = this.zPower.Visible = s.Contains('D');
+                    this.lblFocus.Visible = this.zFocus.Visible = s.Contains('Z');
+                }
                 this.txtStatus.Text = s;
-
+            }
         }
 
 #if USEELTIMA
